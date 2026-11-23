@@ -9,7 +9,7 @@
 #   en subredes privadas; el NLB entrega a los pods del gateway GraphQL.
 # =============================================================================
 locals {
-  private_api = var.execute_api_vpce_id != null
+  private_api = var.private_api
   backend_uri = var.use_floci ? var.graphql_backend_url : "http://${aws_lb.internal.dns_name}"
 }
 
@@ -50,7 +50,7 @@ resource "aws_lb_listener" "graphql" {
 
 resource "aws_api_gateway_vpc_link" "this" {
   name        = "${var.name_prefix}-vpc-link"
-  description = "VPC Link privado hacia el NLB interno del clúster (${var.environment})"
+  description = "VPC Link privado hacia el NLB interno del cluster (${var.environment})"
   target_arns = [aws_lb.internal.arn]
   tags        = var.tags
 }
