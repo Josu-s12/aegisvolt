@@ -84,6 +84,7 @@ module "api_gateway" {
   vpc_id              = module.network.vpc_id
   private_subnet_ids  = module.network.private_subnet_ids
   execute_api_vpce_id = module.network.execute_api_vpce_id
+  private_api         = var.enable_vpc_endpoints
   graphql_backend_url = var.graphql_backend_url
   use_floci           = var.use_floci
   tags                = local.common_tags

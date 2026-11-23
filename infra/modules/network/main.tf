@@ -109,7 +109,7 @@ resource "aws_security_group" "eks_cluster" {
   vpc_id      = aws_vpc.this.id
 
   ingress {
-    description = "Trafico interno de la VPC (NLB -> NodePort/pods, pod a pod)"
+    description = "Trafico interno de la VPC: NLB a NodePort y pod a pod"
     from_port   = 0
     to_port     = 65535
     protocol    = "tcp"
@@ -152,7 +152,7 @@ locals {
     "execute-api" = "API Gateway privado (APIGW)"
     "logs"        = "CloudWatch Logs"
     "monitoring"  = "CloudWatch Metrics"
-    "eks"         = "API del clúster Kubernetes (EKS)"
+    "eks"         = "API del cluster Kubernetes (EKS)"
     "sts"         = "IRSA / credenciales de pods"
     "ecr.api"     = "ECR API (imagenes)"
     "ecr.dkr"     = "ECR Docker registry"

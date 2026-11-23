@@ -12,3 +12,8 @@ variable "tags" {
   type    = map(string)
   default = {}
 }
+variable "private_api" {
+  description = "true = endpoint PRIVATE detras del VPCE execute-api"
+  type        = bool
+  default     = true
+}
