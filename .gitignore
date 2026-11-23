@@ -11,3 +11,4 @@ plan.txt
 __pycache__/
 *.pyc
 .env
+.venv/
