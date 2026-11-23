@@ -1,0 +1,139 @@
+# =============================================================================
+# CD - se ejecuta cuando un PR se fusiona (push) a dev, test o prod (POST-MERGE).
+#   1) Detecta dinámicamente la rama destino -> ambiente
+#   2) terraform workspace select <ambiente> && terraform apply -auto-approve
+#   3) Canary deployment en Kubernetes (20% -> análisis -> 100% o rollback)
+#
+# Runner: por defecto ubuntu-latest con un entorno EFÍMERO (Floci + kind dentro
+# del job). Si registras un self-hosted runner en tu PC y creas la variable de
+# repositorio CD_RUNNER=self-hosted, el mismo pipeline actúa sobre tu Floci y tu
+# clúster kind locales (estado persistente).
+# =============================================================================
+name: CD (Post-Merge)
+
+on:
+  push:
+    branches: [dev, test, prod]
+
+concurrency:
+  group: cd-${{ github.ref_name }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  TF_VERSION: "1.9.8"
+  AWS_ACCESS_KEY_ID: test
+  AWS_SECRET_ACCESS_KEY: test
+  AWS_DEFAULT_REGION: us-east-1
+  AWS_REGION: us-east-1
+  AWS_ENDPOINT_URL: http://localhost:4566
+  EPHEMERAL: ${{ vars.CD_RUNNER != 'self-hosted' }}
+
+jobs:
+  detect-environment:
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.detect.outputs.environment }}
+    steps:
+      - id: detect
+        name: Detección dinámica de la rama destino
+        run: |
+          # GITHUB_REF_NAME = rama que recibió el merge (dev | test | prod)
+          case "${GITHUB_REF_NAME}" in
+            dev|test|prod) ENVIRONMENT="${GITHUB_REF_NAME}" ;;
+            *) echo "::error::Rama no mapeada a ambiente: ${GITHUB_REF_NAME}"; exit 1 ;;
+          esac
+          echo "environment=${ENVIRONMENT}" >> "$GITHUB_OUTPUT"
+          echo "### Merge a \`${GITHUB_REF_NAME}\` → ambiente \`${ENVIRONMENT}\`" >> "$GITHUB_STEP_SUMMARY"
+
+  deploy:
+    needs: detect-environment
+    runs-on: ${{ vars.CD_RUNNER || 'ubuntu-latest' }}
+    # GitHub Environments: en "prod" puedes exigir aprobación manual (Settings > Environments)
+    environment: ${{ needs.detect-environment.outputs.environment }}
+    env:
+      ENVIRONMENT: ${{ needs.detect-environment.outputs.environment }}
+      TAG: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      # ---------- Entorno efímero (solo en runners de GitHub) ----------
+      - name: Crear clúster Kubernetes (kind)
+        if: env.EPHEMERAL == 'true'
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: aegisvolt
+          config: scripts/kind-config.yaml
+
+      - name: Levantar Floci en la red de kind
+        if: env.EPHEMERAL == 'true'
+        run: |
+          docker run -d --name floci --network kind -p 4566:4566 \
+            -e FLOCI_HOSTNAME=floci -e FLOCI_SERVICES_EKS_MOCK=true floci/floci:latest
+          for i in $(seq 1 30); do curl -sf http://localhost:4566/_floci/info >/dev/null && break; sleep 2; done
+
+      - name: Backend S3 versionado
+        if: env.EPHEMERAL == 'true'
+        working-directory: infra/bootstrap
+        run: terraform init -input=false && terraform apply -input=false -auto-approve
+
+      # ---------- Infraestructura: SOLO el workspace del ambiente destino ----------
+      - name: terraform apply (workspace = ${{ env.ENVIRONMENT }})
+        working-directory: infra/envs
+        run: |
+          terraform init -input=false -reconfigure -backend-config=backend-floci.hcl
+          terraform workspace select -or-create "${ENVIRONMENT}"
+          echo "Workspace activo: $(terraform workspace show)"
+          terraform apply -input=false -auto-approve -var-file="${ENVIRONMENT}.tfvars"
+          terraform output
+
+      # ---------- Imágenes ----------
+      - name: Build y carga de imágenes
+        run: |
+          bash scripts/build-images.sh "${TAG}"
+          if [ "$EPHEMERAL" = "true" ]; then
+            # baseline "estable" previa para que exista algo que comparar en el canary
+            for i in station-reservation-service billing-wallet-service energy-dispatch-service graphql-gateway frontend; do
+              docker tag "aegisvolt/$i:${TAG}" "aegisvolt/$i:v1"; kind load docker-image "aegisvolt/$i:v1" --name aegisvolt
+            done
+          fi
+
+      - name: Asegurar despliegue base del ambiente
+        run: |
+          kubectl apply -k "k8s/overlays/${ENVIRONMENT}"
+          kubectl -n "aegisvolt-${ENVIRONMENT}" rollout status deploy --timeout=240s
+
+      # ---------- Canary 20% -> health checks + CloudWatch -> 100% o rollback ----------
+      - name: Canary deployment
+        env:
+          CANARY_WEIGHT: "20"
+          ERROR_RATE_THRESHOLD: "5"
+          MAX_CANARY_CW_ERRORS: "0"
+        run: bash scripts/canary-deploy.sh "${ENVIRONMENT}" "${TAG}"
+
+      - name: Frontend a la nueva versión
+        run: |
+          kubectl -n "aegisvolt-${ENVIRONMENT}" set image deploy/frontend "frontend=aegisvolt/frontend:${TAG}"
+          kubectl -n "aegisvolt-${ENVIRONMENT}" rollout status deploy/frontend --timeout=120s
+
+      - name: Smoke test GraphQL
+        run: |
+          declare -A P=( [dev]=8401 [test]=8402 [prod]=8403 )
+          curl -sf "http://localhost:${P[$ENVIRONMENT]}/graphql" -H 'content-type: application/json' \
+            -d '{"query":"{ environment { name version } health { service status version } }"}' | tee /dev/stderr | grep -q '"UP"'
+
+      - name: Resumen
+        if: always()
+        run: |
+          {
+            echo "## Despliegue ${ENVIRONMENT} · ${TAG}"
+            kubectl -n "aegisvolt-${ENVIRONMENT}" get deploy -o wide 2>/dev/null | sed 's/^/    /'
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,41 @@
+# Overlay del ambiente dev: mismo manifiesto base, distinto namespace y configuración.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: aegisvolt-dev
+resources:
+  - namespace.yaml
+  - ../../base
+labels:
+  - pairs: { environment: dev }
+    includeSelectors: false
+configMapGenerator:
+  - name: aegisvolt-config
+    options: { disableNameSuffixHash: true }
+    literals:
+      - APP_ENV=dev
+      - AWS_REGION=us-east-1
+      # Floci conectado a la red docker "kind" (ver scripts/local-up.sh).
+      # En AWS real: borrar esta línea (el SDK usa los endpoints reales + VPCE).
+      - AWS_ENDPOINT_URL=http://floci:4566
+      - CLOUDWATCH_LOGS_ENABLED=true
+      - RESERVATION_URL=http://station-reservation-service:4001
+      - BILLING_URL=http://billing-wallet-service:4002
+      - DISPATCH_URL=http://energy-dispatch-service:4003
+secretGenerator:
+  - name: aws-credentials
+    options: { disableNameSuffixHash: true }
+    literals:
+      # Floci acepta cualquier valor. En EKS real se usa IRSA (sin llaves).
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+patches:
+  - target: { kind: Service, name: graphql-gateway }
+    patch: |-
+      - op: replace
+        path: /spec/ports/0/nodePort
+        value: 30401
+  - target: { kind: Service, name: frontend }
+    patch: |-
+      - op: replace
+        path: /spec/ports/0/nodePort
+        value: 30081

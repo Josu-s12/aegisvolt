@@ -1,0 +1,101 @@
+# station-reservation-service: Deployment estable + Deployment canary detrás del MISMO Service.
+# El Service selecciona solo por "app", así que reparte tráfico entre ambos tracks
+# en proporción al número de pods: 4 stable + 1 canary = 20% canary.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: station-reservation-service-stable
+  labels: { app: station-reservation-service, track: stable, part-of: aegisvolt }
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels: { app: station-reservation-service, track: stable }
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  template:
+    metadata:
+      labels: { app: station-reservation-service, track: stable, part-of: aegisvolt }
+    spec:
+      containers:
+        - name: station-reservation-service
+          image: aegisvolt/station-reservation-service:v1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 4001
+          envFrom:
+            - configMapRef: { name: aegisvolt-config }
+            - secretRef: { name: aws-credentials }
+          env:
+            - { name: PORT, value: "4001" }
+            - { name: APP_TRACK, value: stable }
+            - { name: APP_VERSION, value: v1 }
+          readinessProbe:
+            httpGet: { path: /health, port: 4001 }
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /health, port: 4001 }
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 6
+          resources:
+            requests: { cpu: 25m, memory: 64Mi }
+            limits: { cpu: 300m, memory: 192Mi }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: station-reservation-service-canary
+  labels: { app: station-reservation-service, track: canary, part-of: aegisvolt }
+spec:
+  replicas: 0
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels: { app: station-reservation-service, track: canary }
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  template:
+    metadata:
+      labels: { app: station-reservation-service, track: canary, part-of: aegisvolt }
+    spec:
+      containers:
+        - name: station-reservation-service
+          image: aegisvolt/station-reservation-service:v1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 4001
+          envFrom:
+            - configMapRef: { name: aegisvolt-config }
+            - secretRef: { name: aws-credentials }
+          env:
+            - { name: PORT, value: "4001" }
+            - { name: APP_TRACK, value: canary }
+            - { name: APP_VERSION, value: v1 }
+          readinessProbe:
+            httpGet: { path: /health, port: 4001 }
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /health, port: 4001 }
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 6
+          resources:
+            requests: { cpu: 25m, memory: 64Mi }
+            limits: { cpu: 300m, memory: 192Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: station-reservation-service
+  labels: { app: station-reservation-service, part-of: aegisvolt }
+spec:
+  type: ClusterIP
+  selector: { app: station-reservation-service }
+  ports:
+    - name: http
+      port: 4001
+      targetPort: 4001

@@ -1,0 +1,29 @@
+{
+  "connectors": [
+    { "connectorId": "BOG-80-A", "stationId": "ST-BOG-80", "stationName": "Electrolinera Bogotá Calle 80", "city": "Bogotá", "connectorType": "CCS2", "powerKw": 150, "ultraFast": false },
+    { "connectorId": "BOG-80-B", "stationId": "ST-BOG-80", "stationName": "Electrolinera Bogotá Calle 80", "city": "Bogotá", "connectorType": "CCS2", "powerKw": 60, "ultraFast": false },
+    { "connectorId": "BOG-80-U", "stationId": "ST-BOG-80", "stationName": "Electrolinera Bogotá Calle 80", "city": "Bogotá", "connectorType": "CCS2-HPC", "powerKw": 350, "ultraFast": true },
+    { "connectorId": "MDE-POB-A", "stationId": "ST-MDE-POB", "stationName": "Hub Medellín El Poblado", "city": "Medellín", "connectorType": "CCS2", "powerKw": 120, "ultraFast": false },
+    { "connectorId": "MDE-POB-B", "stationId": "ST-MDE-POB", "stationName": "Hub Medellín El Poblado", "city": "Medellín", "connectorType": "CHAdeMO", "powerKw": 50, "ultraFast": false },
+    { "connectorId": "CLO-SUR-A", "stationId": "ST-CLO-SUR", "stationName": "Electrolinera Cali Sur", "city": "Cali", "connectorType": "CCS2", "powerKw": 150, "ultraFast": false },
+    { "connectorId": "CLO-SUR-U", "stationId": "ST-CLO-SUR", "stationName": "Electrolinera Cali Sur", "city": "Cali", "connectorType": "CCS2-HPC", "powerKw": 350, "ultraFast": true }
+  ],
+  "wallets": [
+    { "fleetId": "FLEET-ANDES", "fleetName": "Andes Logística (saldo alto)", "balance": 2000000, "currency": "COP" },
+    { "fleetId": "FLEET-PACIFICO", "fleetName": "Pacífico Express (saldo bajo)", "balance": 15000, "currency": "COP" }
+  ],
+  "flags": {
+    "ENABLE_DYNAMIC_SURGE_PRICING": {
+      "description": "Activa tarifas dinámicas (x1.5) en horas pico",
+      "values": { "dev": true, "test": true, "prod": false }
+    },
+    "ENABLE_FAST_CHARGE_BOOST": {
+      "description": "Habilita la reserva prioritaria de ultra-carga (conectores de 350 kW)",
+      "values": { "dev": true, "test": true, "prod": false }
+    },
+    "SIMULATE_CHARGER_HARDWARE_FAULT": {
+      "description": "Inyección de fallos: el cargador reporta error físico y se dispara el rollback de la SAGA",
+      "values": { "dev": false, "test": false, "prod": false }
+    }
+  }
+}

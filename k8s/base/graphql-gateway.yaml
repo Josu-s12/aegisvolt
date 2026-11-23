@@ -1,0 +1,102 @@
+# graphql-gateway: Deployment estable + Deployment canary detrás del MISMO Service.
+# El Service selecciona solo por "app", así que reparte tráfico entre ambos tracks
+# en proporción al número de pods: 4 stable + 1 canary = 20% canary.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: graphql-gateway-stable
+  labels: { app: graphql-gateway, track: stable, part-of: aegisvolt }
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels: { app: graphql-gateway, track: stable }
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  template:
+    metadata:
+      labels: { app: graphql-gateway, track: stable, part-of: aegisvolt }
+    spec:
+      containers:
+        - name: graphql-gateway
+          image: aegisvolt/graphql-gateway:v1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 4000
+          envFrom:
+            - configMapRef: { name: aegisvolt-config }
+            - secretRef: { name: aws-credentials }
+          env:
+            - { name: PORT, value: "4000" }
+            - { name: APP_TRACK, value: stable }
+            - { name: APP_VERSION, value: v1 }
+          readinessProbe:
+            httpGet: { path: /health, port: 4000 }
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /health, port: 4000 }
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 6
+          resources:
+            requests: { cpu: 25m, memory: 64Mi }
+            limits: { cpu: 300m, memory: 192Mi }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: graphql-gateway-canary
+  labels: { app: graphql-gateway, track: canary, part-of: aegisvolt }
+spec:
+  replicas: 0
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels: { app: graphql-gateway, track: canary }
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  template:
+    metadata:
+      labels: { app: graphql-gateway, track: canary, part-of: aegisvolt }
+    spec:
+      containers:
+        - name: graphql-gateway
+          image: aegisvolt/graphql-gateway:v1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 4000
+          envFrom:
+            - configMapRef: { name: aegisvolt-config }
+            - secretRef: { name: aws-credentials }
+          env:
+            - { name: PORT, value: "4000" }
+            - { name: APP_TRACK, value: canary }
+            - { name: APP_VERSION, value: v1 }
+          readinessProbe:
+            httpGet: { path: /health, port: 4000 }
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /health, port: 4000 }
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 6
+          resources:
+            requests: { cpu: 25m, memory: 64Mi }
+            limits: { cpu: 300m, memory: 192Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: graphql-gateway
+  labels: { app: graphql-gateway, part-of: aegisvolt }
+spec:
+  type: NodePort
+  selector: { app: graphql-gateway }
+  ports:
+    - name: http
+      port: 4000
+      targetPort: 4000
+      nodePort: 30400

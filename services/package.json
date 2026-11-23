@@ -1,0 +1,30 @@
+{
+  "name": "aegisvolt-services",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "AegisVolt - microservicios (reservation, billing, dispatch) + GraphQL gateway con orquestador SAGA",
+  "scripts": {
+    "start:reservation": "node station-reservation-service/src/index.js",
+    "start:billing": "node billing-wallet-service/src/index.js",
+    "start:dispatch": "node energy-dispatch-service/src/index.js",
+    "start:gateway": "node graphql-gateway/src/index.js",
+    "bootstrap:tables": "node scripts/bootstrap-local-tables.js",
+    "lint": "node scripts/lint.js",
+    "validate:schema": "node scripts/validate-schema.js",
+    "test:unit": "node --test \"test/unit/**/*.test.js\"",
+    "test:integration": "node --test --test-concurrency=1 \"test/integration/**/*.test.js\"",
+    "test:e2e": "node --test --test-concurrency=1 \"test/e2e/**/*.test.js\""
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@aws-sdk/client-cloudwatch-logs": "^3.700.0",
+    "@aws-sdk/client-dynamodb": "^3.700.0",
+    "@aws-sdk/lib-dynamodb": "^3.700.0",
+    "express": "^4.21.2",
+    "graphql": "^16.9.0",
+    "graphql-yoga": "^5.10.0"
+  }
+}

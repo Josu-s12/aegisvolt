@@ -1,0 +1,24 @@
+# Floci: emulador local de AWS (S3, DynamoDB, CloudWatch, API Gateway, EC2/VPC, EKS...)
+# Se conecta a la red docker "kind" para que los pods del clúster lo alcancen como http://floci:4566
+# y para que API Gateway (Floci) alcance el NodePort del gateway GraphQL en el nodo kind.
+# Requisito: el clúster kind ya debe existir (scripts/local-up.sh lo crea primero).
+services:
+  floci:
+    image: floci/floci:latest
+    container_name: floci
+    ports:
+      - "4566:4566"
+    environment:
+      FLOCI_HOSTNAME: floci
+      # Persistente: el estado (y las VERSIONES del tfstate en S3) sobrevive a reinicios
+      FLOCI_STORAGE_MODE: persistent
+      # EKS solo como API (el clúster real de los pods es kind)
+      FLOCI_SERVICES_EKS_MOCK: "true"
+    volumes:
+      - ./.floci-data:/app/data
+    restart: unless-stopped
+
+networks:
+  default:
+    name: kind
+    external: true

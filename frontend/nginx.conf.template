@@ -1,0 +1,14 @@
+server {
+  listen 8080;
+  root /usr/share/nginx/html;
+  index index.html;
+
+  # El frontend de cada ambiente habla con el gateway GraphQL de SU namespace
+  location /graphql {
+    proxy_pass ${GRAPHQL_UPSTREAM}/graphql;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+  }
+  location = /config.js { add_header Cache-Control "no-store"; }
+  location / { try_files $uri /index.html; }
+}

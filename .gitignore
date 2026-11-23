@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.logs/
+.terraform/
+*.tfstate
+*.tfstate.*
+tfplan*
+plan.txt
+.terraform.lock.hcl
+.floci-data/
+__pycache__/
+*.pyc
+.env

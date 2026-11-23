@@ -1,0 +1,101 @@
+# billing-wallet-service: Deployment estable + Deployment canary detrás del MISMO Service.
+# El Service selecciona solo por "app", así que reparte tráfico entre ambos tracks
+# en proporción al número de pods: 4 stable + 1 canary = 20% canary.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: billing-wallet-service-stable
+  labels: { app: billing-wallet-service, track: stable, part-of: aegisvolt }
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels: { app: billing-wallet-service, track: stable }
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  template:
+    metadata:
+      labels: { app: billing-wallet-service, track: stable, part-of: aegisvolt }
+    spec:
+      containers:
+        - name: billing-wallet-service
+          image: aegisvolt/billing-wallet-service:v1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 4002
+          envFrom:
+            - configMapRef: { name: aegisvolt-config }
+            - secretRef: { name: aws-credentials }
+          env:
+            - { name: PORT, value: "4002" }
+            - { name: APP_TRACK, value: stable }
+            - { name: APP_VERSION, value: v1 }
+          readinessProbe:
+            httpGet: { path: /health, port: 4002 }
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /health, port: 4002 }
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 6
+          resources:
+            requests: { cpu: 25m, memory: 64Mi }
+            limits: { cpu: 300m, memory: 192Mi }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: billing-wallet-service-canary
+  labels: { app: billing-wallet-service, track: canary, part-of: aegisvolt }
+spec:
+  replicas: 0
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels: { app: billing-wallet-service, track: canary }
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  template:
+    metadata:
+      labels: { app: billing-wallet-service, track: canary, part-of: aegisvolt }
+    spec:
+      containers:
+        - name: billing-wallet-service
+          image: aegisvolt/billing-wallet-service:v1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 4002
+          envFrom:
+            - configMapRef: { name: aegisvolt-config }
+            - secretRef: { name: aws-credentials }
+          env:
+            - { name: PORT, value: "4002" }
+            - { name: APP_TRACK, value: canary }
+            - { name: APP_VERSION, value: v1 }
+          readinessProbe:
+            httpGet: { path: /health, port: 4002 }
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /health, port: 4002 }
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 6
+          resources:
+            requests: { cpu: 25m, memory: 64Mi }
+            limits: { cpu: 300m, memory: 192Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: billing-wallet-service
+  labels: { app: billing-wallet-service, part-of: aegisvolt }
+spec:
+  type: ClusterIP
+  selector: { app: billing-wallet-service }
+  ports:
+    - name: http
+      port: 4002
+      targetPort: 4002

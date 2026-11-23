@@ -1,0 +1,6 @@
+# Los scripts bash deben conservar finales de línea LF aunque se clone en Windows
+*.sh   text eol=lf
+*.tf   text eol=lf
+*.hcl  text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf

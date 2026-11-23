@@ -1,0 +1,152 @@
+"""
+AegisVolt - Esquema GraphQL unificado (GraphQL Aggregation Layer).
+Queries: consultan estaciones, telemetría, flags, billeteras y transacciones.
+Mutations: inician la SAGA de reserva + cobro + activación de carga.
+"""
+type Query {
+  "Ambiente en el que corre este gateway (dev | test | prod)"
+  environment: EnvironmentInfo!
+  "Salud de los 3 microservicios"
+  health: [ServiceHealth!]!
+  stations: [Station!]!
+  connectors(stationId: ID): [Connector!]!
+  telemetry(connectorId: ID!, limit: Int = 20): [TelemetryReading!]!
+  featureFlags: [FeatureFlag!]!
+  wallets: [Wallet!]!
+  wallet(fleetId: ID!): Wallet
+  quote(estimatedKwh: Float!, priority: Boolean = false): Quote!
+  "Historial de transacciones SAGA (más recientes primero)"
+  transactions(limit: Int = 25, status: SagaStatus): [SagaTransaction!]!
+  transaction(sagaId: ID!): SagaTransaction
+}
+
+type Mutation {
+  """
+  Dispara la transacción distribuida SAGA:
+  1) reserva el conector, 2) cobra a la billetera, 3) activa el cargador.
+  Si un paso falla se ejecutan las transacciones compensatorias en orden inverso.
+  requestId es opcional: si se reenvía el mismo, se devuelve la misma SAGA (idempotencia).
+  """
+  reserveAndStartCharging(input: StartChargingInput!): SagaTransaction!
+  "Termina una sesión de carga activa y libera el conector"
+  stopCharging(sagaId: ID!): SagaTransaction!
+  "Cambia una Feature Flag SOLO en el ambiente de este gateway, sin redesplegar"
+  setFeatureFlag(name: String!, enabled: Boolean!): FeatureFlag!
+  topUpWallet(fleetId: ID!, amount: Float!): Wallet!
+}
+
+input StartChargingInput {
+  fleetId: ID!
+  connectorId: ID!
+  estimatedKwh: Float!
+  priority: Boolean = false
+  requestId: ID
+}
+
+type EnvironmentInfo {
+  name: String!
+  version: String!
+  track: String!
+  region: String!
+}
+
+type ServiceHealth {
+  service: String!
+  status: String!
+  version: String
+  track: String
+}
+
+type Station {
+  id: ID!
+  name: String!
+  city: String
+  connectors: [Connector!]!
+  availableConnectors: Int!
+}
+
+enum ConnectorStatus {
+  AVAILABLE
+  RESERVED
+  CHARGING
+  FAULT
+}
+
+type Connector {
+  id: ID!
+  stationId: ID!
+  stationName: String
+  type: String
+  powerKw: Float
+  ultraFast: Boolean!
+  status: ConnectorStatus!
+  sagaId: ID
+  updatedAt: String
+}
+
+type TelemetryReading {
+  connectorId: ID!
+  sagaId: ID
+  timestamp: String!
+  powerKw: Float!
+  energyKwh: Float!
+  voltage: Float
+  temperatureC: Float
+}
+
+type FeatureFlag {
+  name: String!
+  enabled: Boolean!
+  description: String
+  environment: String!
+  updatedAt: String
+  updatedBy: String
+}
+
+type Wallet {
+  fleetId: ID!
+  fleetName: String
+  balance: Float!
+  currency: String!
+}
+
+type Quote {
+  amount: Float!
+  currency: String!
+  surgeApplied: Boolean!
+  priority: Boolean!
+  ratePerKwh: Float!
+}
+
+enum SagaStatus {
+  STARTED
+  COMPLETED
+  COMPENSATING
+  COMPENSATED
+  FAILED
+  COMPENSATION_FAILED
+  FINISHED
+}
+
+type SagaStep {
+  name: String!
+  status: String!
+  at: String!
+  detail: String
+}
+
+type SagaTransaction {
+  sagaId: ID!
+  correlationId: ID!
+  environment: String!
+  fleetId: ID!
+  connectorId: ID!
+  estimatedKwh: Float!
+  priority: Boolean!
+  amount: Float
+  status: SagaStatus!
+  failureReason: String
+  steps: [SagaStep!]!
+  createdAt: String!
+  updatedAt: String!
+}
