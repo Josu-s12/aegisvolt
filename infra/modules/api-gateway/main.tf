@@ -9,7 +9,7 @@
 #   en subredes privadas; el NLB entrega a los pods del gateway GraphQL.
 # =============================================================================
 locals {
-  private_api = var.execute_api_vpce_id != null
+  private_api = var.private_api
   backend_uri = var.use_floci ? var.graphql_backend_url : "http://${aws_lb.internal.dns_name}"
 }
 
