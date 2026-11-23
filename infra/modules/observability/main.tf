@@ -66,7 +66,7 @@ resource "aws_cloudwatch_log_metric_filter" "saga_compensation_failed" {
 
 resource "aws_cloudwatch_metric_alarm" "compensation_failed" {
   alarm_name          = "${var.project}-${var.environment}-saga-compensation-failed"
-  alarm_description   = "Una SAGA no pudo completar su compensación: requiere revisión (transacción huérfana)"
+  alarm_description   = "Una SAGA no pudo completar su compensacion: requiere revision (transaccion huerfana)"
   namespace           = local.namespace
   metric_name         = "SagaCompensationFailed"
   statistic           = "Sum"
