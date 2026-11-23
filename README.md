@@ -25,7 +25,7 @@ Cliente (React) ──HTTPS──► API Gateway PRIVADO ──VPCE execute-api�
 | `prefect/` | Flujo de observabilidad (salud, auditoría SAGA, CloudWatch) |
 | `.github/workflows` | `ci.yml` (PR: guard de promoción, lint/build, unit, integration, e2e, terraform plan) y `cd.yml` (merge: apply por workspace + canary) |
 | `scripts/` | Arranque local, canary, demos de la sustentación |
-| `docs/GUIA.md` | **Guía paso a paso + guion de sustentación por rúbrica** |
+
 
 Arranque rápido (Git Bash / Linux / Mac, con Docker, kind, kubectl, Terraform y AWS CLI instalados):
 
@@ -34,4 +34,4 @@ Arranque rápido (Git Bash / Linux / Mac, con Docker, kind, kubectl, Terraform y
 # Frontend: http://localhost:8081 (dev) · 8082 (test) · 8083 (prod)
 ```
 
-Lee **docs/GUIA.md** para todo el detalle.
+Ver `scripts/local-up.sh` para el arranque completo.
